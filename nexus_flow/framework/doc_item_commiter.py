@@ -1,6 +1,9 @@
 import json
+import os
 from dataclasses import dataclass
-from typing import Iterator, Optional, List, Callable
+from typing import Iterator, List, Callable
+
+from py_common_utility.utils import env_utils
 
 from nexus_flow.hash import hash_utils
 from nexus_flow.hash.hash_info import HashInfo
@@ -20,7 +23,7 @@ class UploadDocItem:
 class SyncDocItem:
     repo_key: str
     src_hash: str
-    content_provide: Callable[[str], UploadDocItem]
+    content_provide: Callable[[str], str]
 
 
 def _to_upload_file_iterator(doc_iterator: Iterator[UploadDocItem]) -> Iterator[UploadFileObj]:
@@ -71,8 +74,8 @@ class DocItemCommiter:
             if self.is_up_to_date(item):
                 self._mark_tag(item.repo_key)
                 continue
-            new_content_item = item.content_provide(item.repo_key)
-            yield new_content_item
+            new_content_item_path: str = item.content_provide(item.repo_key)
+            yield UploadDocItem(repo_key=item.repo_key, file_path=new_content_item_path, src_hash=item.src_hash)
         for rm_tag in self.repo_tag_list:
             _key: str = rm_tag['Key']
             s3_utils.delete_file(self.bucket_name, _key)
@@ -85,6 +88,13 @@ class DocItemCommiter:
 
 
 if __name__ == '__main__':
+    from nexus_flow import nexus_flow_app
+    wd_path = os.path.dirname(__file__)
+    wd_path = os.path.dirname(wd_path)
+    wd_path = os.path.dirname(wd_path)
+    print(wd_path)
+    nexus_flow_app.initialize(wd_path)
+    print(env_utils.env('AWS_ACCESS_KEY_ID'))
     commiter = DocItemCommiter(bucket_name="dsa-doc-json", s3_folder="test/", local_dir="/tmp/dsa-doc-json/test/")
     # new_doc_list = [
     #     UploadDocItem(repo_key="test/djson/1.png",
@@ -103,20 +113,12 @@ if __name__ == '__main__':
         SyncDocItem(
             repo_key="test/djson/1.png",
             src_hash="1234567890abcdef",
-            content_provide=lambda repo_key: UploadDocItem(
-                repo_key=repo_key,
-                file_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png",
-                src_hash="1234567890abcdef"
-            )
+            content_provide=lambda repo_key: "/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png"
         ),
         SyncDocItem(
             repo_key="test/djson/2.png",
             src_hash="fedcba9876543210",
-            content_provide=lambda repo_key: UploadDocItem(
-                repo_key=repo_key,
-                file_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png",
-                src_hash="fedcba9876543210"
-            )
+            content_provide=lambda repo_key: "/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png"
         )
 
     ]))

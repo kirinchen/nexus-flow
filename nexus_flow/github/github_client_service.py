@@ -1,6 +1,5 @@
 from github import Github
-
-from nexus_flow.infra import config
+from py_common_utility.utils import env_utils
 
 
 class GitHubClientService:
@@ -52,6 +51,6 @@ _instance: GitHubClientService = None
 def get_instance():
     global _instance
     if _instance is None:
-        github_token: str = config.env('GITHUB_TOKEN')
+        github_token: str = env_utils.env('GITHUB_TOKEN')
         _instance = GitHubClientService(token=github_token)
     return _instance

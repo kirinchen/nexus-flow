@@ -130,9 +130,19 @@ class S3Service:
         return "Upload completed."
 
 
+_instance: S3Service = None
+
+
+def get_instance() -> S3Service:
+    global _instance
+    if _instance is None:
+        _instance = S3Service()
+    return _instance
+
+
 if __name__ == '__main__':
     # Example usage:
-    service = S3Service()
+    service = get_instance()
     _bucket_name = 'dsa-evr'
     s3_folder = 'company/'
     local_dir = '/tmp/dsa/evr/'

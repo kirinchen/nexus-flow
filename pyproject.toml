@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nexus-flow"
-version = "0.1.7"
+version = "0.1.8"
 description = ""
 authors = ["kirin <kirin.chen1001@gmail.com>"]
 readme = "README.md"
@@ -9,7 +9,7 @@ readme = "README.md"
 python = "^3.11"
 requests = "^2.32.3"
 pygithub = "^2.5.0"
-boto3 = "^1.35.72"
+boto3 = "^1.35.84"
 py-common-utility = "^0.1.4"
 
 

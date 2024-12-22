@@ -111,21 +111,46 @@ class S3Service:
                     except Exception as e:
                         print(f"Failed to download {s3_key}: {e}")
 
-    def upload_files(self, bucket_name: str, doc_iterator: Iterator[UploadFileObj]) -> str:
+    def upload_all(self, bucket_name: str, doc_iterator: Iterator[UploadFileObj]) -> str:
         """
         Upload multiple files to an S3 bucket.
         """
         for item in doc_iterator:
             file_path_obj = Path(item.local_path)
-            if file_path_obj.exists() and file_path_obj.is_file():
-                s3_key = item.dest_path
+            if not file_path_obj.exists():
+                continue
+            s3_key = item.dest_path
+            if file_path_obj.is_file():
+                self.upload_a_file(bucket_name, s3_key, file_path_obj)
+            if file_path_obj.is_dir():
+                self.upload_a_dir(bucket_name=bucket_name,local_folder=str(file_path_obj),dest_folder=s3_key)
+
+        return "Upload completed."
+
+    def upload_a_file(self, bucket_name: str, s3_key: str, file_path_obj: Path) -> str:
+        try:
+            self.s3.upload_file(str(file_path_obj), bucket_name, s3_key)
+            print(f"Uploaded: {file_path_obj} to s3://{bucket_name}/{s3_key}")
+        except Exception as e:
+            print(f"Failed to upload {file_path_obj}: {e}")
+
+    def upload_a_dir(self, bucket_name: str, local_folder: str, dest_folder: str = '') -> str:
+        local_folder = Path(local_folder)
+        if not local_folder.exists() or not local_folder.is_dir():
+            print(f"Local folder does not exist or is not a directory: {local_folder}")
+            return "Upload failed. Invalid folder."
+
+        for root, _, files in os.walk(local_folder):
+            for file_name in files:
+                local_file_path = Path(root) / file_name
+                relative_path = local_file_path.relative_to(local_folder)
+                s3_key = str(Path(dest_folder) / relative_path).replace('\\', '/')
+
                 try:
-                    self.s3.upload_file(str(file_path_obj), bucket_name, s3_key)
-                    print(f"Uploaded: {item.local_path} to s3://{bucket_name}/{s3_key}")
+                    self.s3.upload_file(str(local_file_path), bucket_name, s3_key)
+                    print(f"Uploaded: {local_file_path} to s3://{bucket_name}/{s3_key}")
                 except Exception as e:
-                    print(f"Failed to upload {item.local_path}: {e}")
-            else:
-                print(f"File does not exist or is not a file: {item.local_path}")
+                    print(f"Failed to upload {local_file_path}: {e}")
 
         return "Upload completed."
 
@@ -157,26 +182,33 @@ if __name__ == '__main__':
     # print(a_etag)
     # dir_hash = service.hash_in_folder(_bucket_name, s3_folder)
     # print(dir_hash)
-    #
-    # # Example: upload multiple files
-    # file_path_list = [
-    #     UploadFileObj(
-    #         dest_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png",
-    #         local_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png"
-    #     ),
-    #     UploadFileObj(
-    #         dest_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png",
-    #         local_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png"
-    #     ),
-    #     UploadFileObj(
-    #         dest_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png",
-    #         local_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png"
-    #     ),
-    # ]
-    #
-    # upload_iterator: Iterator[UploadFileObj] = iter(file_path_list)
-    # service.upload_files(_bucket_name, upload_iterator)
-    # print("xxxx")
 
-    dirs = service.list_folders(bucket_name="dsa-doc-json", prefix="")
-    print(dirs)
+    # Example: upload multiple files
+    file_path_list = [
+        UploadFileObj(
+            dest_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png",
+            local_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png"
+        ),
+        UploadFileObj(
+            dest_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png",
+            local_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png"
+        ),
+        UploadFileObj(
+            dest_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png",
+            local_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png"
+        ),
+        UploadFileObj(
+            dest_path="testupload_ufo",
+            local_path="/Users/kirin/Desktop/Project/dsa-rag-etl-doc-to-ver.git"
+        ),
+    ]
+
+    upload_iterator: Iterator[UploadFileObj] = iter(file_path_list)
+    service.upload_all(_bucket_name, upload_iterator)
+    print("xxxx")
+
+    # dirs = service.list_folders(bucket_name="dsa-doc-json", prefix="")
+    # print(dirs)
+    #
+    # local_folder = "/Users/kirin/Desktop/Project/dsa-rag-etl-doc-to-ver.git"
+    # service.upload_a_dir(bucket_name=_bucket_name, local_folder=local_folder, dest_folder="testupload")

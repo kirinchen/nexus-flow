@@ -8,8 +8,8 @@ from py_common_utility.utils import env_utils
 from nexus_flow.hash import hash_utils
 from nexus_flow.hash.hash_info import HashInfo
 from nexus_flow.infra import nexus_flow_constant
-from nexus_flow.s3 import s3_utils
-from nexus_flow.s3.s3_utils import UploadFileObj
+from nexus_flow.s3 import s3_service
+from nexus_flow.s3.s3_service import UploadFileObj
 
 
 @dataclass
@@ -47,7 +47,7 @@ class DocItemCommiter:
         self.bucket_name: str = bucket_name
         self.s3_folder: str = s3_folder
         self.local_dir: str = local_dir
-        self.repo_tag_list: List[dict] = s3_utils.list_etag_in_folder(bucket_name=self.bucket_name,
+        self.repo_tag_list: List[dict] = s3_service.get_instance().list_etag_in_folder(bucket_name=self.bucket_name,
                                                                       folder_prefix=self.s3_folder,
                                                                       file_extensions=[
                                                                           nexus_flow_constant.HASH_INFO_EXTENSION])
@@ -57,7 +57,7 @@ class DocItemCommiter:
         self.repo_tag_list = [i for i in self.repo_tag_list if i.get('Key') != _key]
 
     def is_up_to_date(self, item: SyncDocItem) -> bool:
-        hash_json: str = s3_utils.get_file_content(self.bucket_name,
+        hash_json: str = s3_service.get_instance().get_file_content(self.bucket_name,
                                                    s3_key=item.repo_key + nexus_flow_constant.HASH_INFO_EXTENSION)
         if not hash_json:
             return False
@@ -78,13 +78,13 @@ class DocItemCommiter:
             yield UploadDocItem(repo_key=item.repo_key, file_path=new_content_item_path, src_hash=item.src_hash)
         for rm_tag in self.repo_tag_list:
             _key: str = rm_tag['Key']
-            s3_utils.delete_file(self.bucket_name, _key)
+            s3_service.get_instance().delete_file(self.bucket_name, _key)
             orig_key = _key.removesuffix(nexus_flow_constant.HASH_INFO_EXTENSION)
-            s3_utils.delete_file(self.bucket_name, orig_key)
+            s3_service.get_instance().delete_file(self.bucket_name, orig_key)
 
     def append_doc_all(self, doc_iterator: Iterator[UploadDocItem]):
         file_list_it = _to_upload_file_iterator(doc_iterator)
-        s3_utils.upload_files(self.bucket_name, file_list_it)
+        s3_service.get_instance().upload_all(self.bucket_name, file_list_it)
 
 
 if __name__ == '__main__':

@@ -32,7 +32,7 @@ def _to_upload_file_iterator(doc_iterator: Iterator[UploadDocItem]) -> Iterator[
             dest_path=f"{doc.repo_key}",
             local_path=doc.file_path
         )
-        dest_hash = hash_utils.generate_md5_by_file(doc.file_path)
+        dest_hash = hash_utils.generate_md5_by_path(doc.file_path)
         dest_hash_info: HashInfo = HashInfo(src_uid=doc.repo_key, src_hash=doc.src_hash)
         hash_file_path = dest_hash_info.save(doc.file_path, dest_hash)
         yield UploadFileObj(

@@ -23,6 +23,7 @@ class UploadDocItem:
 class SyncDocItem:
     repo_key: str
     src_hash: str
+    del_old_target: bool
     content_provide: Callable[[str], str]
 
 
@@ -48,9 +49,9 @@ class DocItemCommiter:
         self.s3_folder: str = s3_folder
         self.local_dir: str = local_dir
         self.repo_tag_list: List[dict] = s3_service.get_instance().list_etag_in_folder(bucket_name=self.bucket_name,
-                                                                      folder_prefix=self.s3_folder,
-                                                                      file_extensions=[
-                                                                          nexus_flow_constant.HASH_INFO_EXTENSION])
+                                                                                       folder_prefix=self.s3_folder,
+                                                                                       file_extensions=[
+                                                                                           nexus_flow_constant.HASH_INFO_EXTENSION])
 
     def _mark_tag(self, key: str):
         _key = key + nexus_flow_constant.HASH_INFO_EXTENSION
@@ -58,7 +59,7 @@ class DocItemCommiter:
 
     def is_up_to_date(self, item: SyncDocItem) -> bool:
         hash_json: str = s3_service.get_instance().get_file_content(self.bucket_name,
-                                                   s3_key=item.repo_key + nexus_flow_constant.HASH_INFO_EXTENSION)
+                                                                    s3_key=item.repo_key + nexus_flow_constant.HASH_INFO_EXTENSION)
         if not hash_json:
             return False
         hash_obj = json.loads(hash_json)
@@ -75,12 +76,14 @@ class DocItemCommiter:
                 self._mark_tag(item.repo_key)
                 continue
             new_content_item_path: str = item.content_provide(item.repo_key)
+            if item.del_old_target:
+                s3_service.get_instance().delete_path(bucket_name=self.bucket_name, s3_path=item.repo_key)
             yield UploadDocItem(repo_key=item.repo_key, file_path=new_content_item_path, src_hash=item.src_hash)
         for rm_tag in self.repo_tag_list:
             _key: str = rm_tag['Key']
-            s3_service.get_instance().delete_file(self.bucket_name, _key)
+            s3_service.get_instance().delete_path(self.bucket_name, _key)
             orig_key = _key.removesuffix(nexus_flow_constant.HASH_INFO_EXTENSION)
-            s3_service.get_instance().delete_file(self.bucket_name, orig_key)
+            s3_service.get_instance().delete_path(self.bucket_name, orig_key)
 
     def append_doc_all(self, doc_iterator: Iterator[UploadDocItem]):
         file_list_it = _to_upload_file_iterator(doc_iterator)
@@ -89,6 +92,7 @@ class DocItemCommiter:
 
 if __name__ == '__main__':
     from nexus_flow import nexus_flow_app
+
     wd_path = os.path.dirname(__file__)
     wd_path = os.path.dirname(wd_path)
     wd_path = os.path.dirname(wd_path)

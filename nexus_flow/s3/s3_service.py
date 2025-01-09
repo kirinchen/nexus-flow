@@ -31,13 +31,33 @@ class S3Service:
                     folders.append(cp['Prefix'])
         return folders
 
-    def delete_file(self, bucket_name: str, s3_key: str):
-        """
-        Delete a file from an S3 bucket using its key.
-        """
-        response = self.s3.delete_object(Bucket=bucket_name, Key=s3_key)
-        print(f"Deleted {s3_key} from bucket {bucket_name}.")
-        return response
+    def delete_path(self, bucket_name: str, s3_path: str):
+        try:
+            response = self.s3.head_object(Bucket=bucket_name, Key=s3_path)
+            if response:
+                # Path is a file, delete it
+                self.s3.delete_object(Bucket=bucket_name, Key=s3_path)
+                print(f"Deleted file: {s3_path} from bucket: {bucket_name}")
+                return
+        except self.s3.exceptions.ClientError as e:
+            if e.response['Error']['Code'] != '404':
+                print(f"Error checking file: {e}")
+                return
+
+        paginator = self.s3.get_paginator('list_objects_v2')
+        objects_to_delete = []
+
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=s3_path):
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    objects_to_delete.append({'Key': obj['Key']})
+
+        if objects_to_delete:
+            delete_request = {'Objects': objects_to_delete}
+            self.s3.delete_objects(Bucket=bucket_name, Delete=delete_request)
+            print(f"Deleted folder: {s3_path} and its contents from bucket: {bucket_name}")
+        else:
+            print(f"No objects found at path: {s3_path} to delete.")
 
     def get_file_content(self, bucket_name: str, s3_key: str, default_value: str = '') -> str:
         """
@@ -97,15 +117,12 @@ class S3Service:
             if 'Contents' in page:
                 for obj in page['Contents']:
                     s3_key = obj['Key']
-
-                    # Filter by file extension
-                    if file_extensions and not any(s3_key.endswith(ext) for ext in file_extensions):
-                        continue
-
-                    local_file_path = os.path.join(local_dir, os.path.relpath(s3_key, s3_folder))
-                    Path(local_file_path).parent.mkdir(parents=True, exist_ok=True)
-
                     try:
+                        if file_extensions and not any(s3_key.endswith(ext) for ext in file_extensions):
+                            continue
+
+                        local_file_path = os.path.join(local_dir, os.path.relpath(s3_key, s3_folder))
+                        Path(local_file_path).parent.mkdir(parents=True, exist_ok=True)
                         self.s3.download_file(bucket_name, s3_key, local_file_path)
                         print(f"Downloaded {s3_key} to {local_file_path}")
                     except Exception as e:
@@ -173,7 +190,7 @@ if __name__ == '__main__':
     local_dir = '/tmp/dsa/evr/'
 
     # Example: download a folder
-    # service.download_folder(bucket_name, s3_folder, local_dir)
+    service.download_folder(_bucket_name, s3_folder, local_dir)
 
     # # Example: list ETags and compute a hash
     # hash_list = service.list_etag_in_folder(_bucket_name, s3_folder)
@@ -184,28 +201,28 @@ if __name__ == '__main__':
     # print(dir_hash)
 
     # Example: upload multiple files
-    file_path_list = [
-        UploadFileObj(
-            dest_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png",
-            local_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png"
-        ),
-        UploadFileObj(
-            dest_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png",
-            local_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png"
-        ),
-        UploadFileObj(
-            dest_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png",
-            local_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png"
-        ),
-        UploadFileObj(
-            dest_path="testupload_ufo",
-            local_path="/Users/kirin/Desktop/Project/dsa-rag-etl-doc-to-ver.git"
-        ),
-    ]
-
-    upload_iterator: Iterator[UploadFileObj] = iter(file_path_list)
-    service.upload_all(_bucket_name, upload_iterator)
-    print("xxxx")
+    # file_path_list = [
+    #     UploadFileObj(
+    #         dest_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png",
+    #         local_path="/tmp/bzk/output/chart/hash_-13362422024-11-18_23_37_24.png"
+    #     ),
+    #     UploadFileObj(
+    #         dest_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png",
+    #         local_path="/tmp/bzk/output/chart/hash_-362356492024-11-04_10_22_39.png"
+    #     ),
+    #     UploadFileObj(
+    #         dest_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png",
+    #         local_path="/tmp/bzk/output/chart/hash_397484922024-11-19_23_58_51.png"
+    #     ),
+    #     UploadFileObj(
+    #         dest_path="testupload_ufo",
+    #         local_path="/Users/kirin/Desktop/Project/dsa-rag-etl-doc-to-ver.git"
+    #     ),
+    # ]
+    #
+    # upload_iterator: Iterator[UploadFileObj] = iter(file_path_list)
+    # service.upload_all(_bucket_name, upload_iterator)
+    # print("xxxx")
 
     # dirs = service.list_folders(bucket_name="dsa-doc-json", prefix="")
     # print(dirs)
